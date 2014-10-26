@@ -1,0 +1,124 @@
+---
+title: "Understanding the Effects of Weather on Public Health and Economy"
+author: "Lenny Fenster"
+date: "Sunday, October 26, 2014"
+output: html_document
+---
+
+```{r setoptions, echo=FALSE }
+knitr::opts_chunk$set(fig.path="figures/")
+
+```  
+
+## Synopsis
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, property damage, and crop damage. Preventing such outcomes to any extent possible is a key concern.
+
+This project explored the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. The weather events in the United States were observed against the number of injuries recorded for each weather event type as well as fatalities, property damage, and crop damage.  It is shown that the most catastrophic type of weather event to population health both in terms of injury and fatality are tornadoes.  However, the greatest damage from an economic perspective to both property and crops is Floods.
+
+## Data Processing
+To ascertain which weather event types have the most harmful effects on both public health and the economy, the data from NOAA Storm Database was explored.  This data exists in a comma-separated-value file compressed via the bzip2 algorithm to reduce its size.  A check was made to ensure this file exists in the current directory and if not, downloads it from the appropriate location.  Once we are assured the file exists, the data is read from it and stored in  local variable.  Functions for getting the data and reading it are used to encapsulate the logic needed for each of these steps. 
+
+```{r, echo=TRUE}
+
+##Make sure the raw data file exist.  
+##If data file does not yet exists, download the zip file and unzip the raw data file
+getDataFiles <- function()
+{
+    ##check the subdirectories for train and test do not exist, extract from zip file
+    if(!file.exists("StormData.csv.bz2")) 
+    {        
+        ## if raw zip file does not exist, download it
+        if(!file.exists("StormData.csv.bz2"))
+        {
+            ## if doesnt exist download file
+            download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",destfile = "StormData.csv.bz2")
+        }    
+    }               
+}    
+ 
+        
+readData <- function()
+{
+        ##if data doesnt exist in cache, read data from zip file into dataset and cache it for future use
+        stormData <- read.csv(stormDataFile<-bzfile("StormData.csv.bz2", "r"))
+        close(stormDataFile)
+        return (stormData)
+}
+
+getDataFiles()
+stormData<-readData()
+
+```
+
+### Data Cleansing
+
+```{r, echo=TRUE}
+cleanData <- function(stormData)
+{
+    #there are 898 unique event types in the raw dataset as determined by length(unique(toupper(stormData$EVTYPE)))
+    uniqueEventTypes<-sort(unique(toupper(stormData$EVTYPE)))
+    
+    #however, according to the storm data documentation only 48 specific event types are allowed
+    permittedEventsPattern<-c("^Astronomical Low", "^Avalanc", "^Blizzard", "(?=.*Cold|Wind)(?=.*Chill)",
+                              "(?=.*Dense)(?=.*Fog)", "(?=.*Dense)(?=.*Smoke)", "(?=.*Drought)", "(?=.*Dust Devil)",
+                              "(?=.*Dust Storm)", "(?=.*Extreme)(?=.*Chill)", "(?=.*Flood)","(?=.*Forst|Freeze)",
+                              "(?=.*Funnel)","(?=.*Freezing Fog)", "(?=.*Hail)", "(?=.*Heat)", "(?=.*Heavy Rains)", "(?=.*Heavy Snow)",
+                              "(?=.*High Surf)","(?=.*High Wind)", "(?=.*Hurricane|Typhoon)", "(?=.*Ice Storm)", "(?=.*Lake)(?=.*Snow)", 
+                              "(?=.*Lake)(?=.*Flood)","(?=.*Lightning)", "(?=.*Marine Hail)", "(?=.*Marine High Wind)",  
+                              "(?=.*Marine T)","(?=.*Rip Current)", "(?=.*Seiche)", "(?=.*Sleet)", "(?=.*Storm Surge)", "(?=.*Strong Wind)", 
+                              "(?=.*Thunderstorm Wind)","(?=.*Tornado)", "(?=.*Tropical Depression)", "(?=.*Tropical Storm)", "(?=.*Tsunami)", 
+                              "(?=.*Volcanic Ash)", "(?=.*Waterspout)", "(?=.*Wildfire)", "(?=.*Winter Storm)", "(?=.*Winter Weather)",
+                              "(?=.*Coastal)(?=.*Flood)","(?=.*Debris)", "(?=.*Excessive Heat)","(?=.*Flash)(?=.*Flood)","(?=.*Marine Strong Wind)"
+                              )
+    permittedEvents<-c("Astronomical Low Tide","Avalanche","Blizzard","Cold/Wind Chill",
+                        "Dense Fog","Dense Smoke","Drought","Dust Devil",
+                        "Dust Storm","Extreme Cold/Wind Chill","Flood","Frost/Freeze", 
+                        "Funnel Cloud","Freezing Fog","Hail","Heat","Heavy Rain","Heavy Snow", 
+                        "High Surf","High Wind","Hurricane (Typhoon)","Ice Storm", 
+                        "Lake-Effect Snow","Lakeshore Flood","Lightning", 
+                        "Marine Hail","Marine High Wind", 
+                        "Marine Thunderstorm Wind","Rip Current","Seiche","Sleet","Storm Surge/Tide","Strong Wind", 
+                        "Thunderstorm Wind","Tornado","Tropical Depression","Tropical Storm","Tsunami", 
+                        "Volcanic Ash","Waterspout","Wildfire","Winter Storm","Winter Weather",
+                        "Coastal Flood","Debris Flow","Excessive Heat","Flash Flood","Marine Strong Wind")
+    goodEvTTable<-data.frame(permittedEvents, permittedEventsPattern)
+    
+    #    eventPatternMatch<-paste(permittedEventsPattern, collapse = "|")
+    #    filteredEVTypes<-uniqueEventTypes[grep(eventPatternMatch, uniqueEventTypes, ignore.case = TRUE, perl=TRUE)]
+    
+    #remove columns not needed for this evaluation
+    cleanedStormData<-stormData[,c(1:8, 23:28)]
+    cleanedStormData$GOODEVTYPE<-NA
+    
+    
+    for (i in 1:length(permittedEvents)) {
+        cleanedStormData[toupper(cleanedStormData$EVTYPE) %in% uniqueEventTypes[grep(goodEvTTable$permittedEventsPattern[i], uniqueEventTypes, ignore.case = TRUE, perl=TRUE)],]$GOODEVTYPE<-as.character(goodEvTTable$permittedEvents[i])
+    }
+    cleanedStormData<-na.omit(cleanedStormData)
+    cleanedStormData$GOODEVTYPE<-as.factor(cleanedStormData$GOODEVTYPE)
+    
+    #convert exponential 'keys' to numerics
+    expkeys<-c("h","k","m","b")
+    expvalue<-c(2,3,6,9)
+    for(i in 1:length(expkeys)) {
+        cleanedStormData$PROPDMGEXP<-gsub(expkeys[i],expvalue[i],cleanedStormData$PROPDMGEXP, ignore.case = TRUE)
+        cleanedStormData$CROPDMGEXP<-gsub(expkeys[i],expvalue[i],cleanedStormData$CROPDMGEXP, ignore.case = TRUE)
+    }
+    
+    #intentionally convert all non-numeric characters that are left (e.g., " +|-|?") to NA and then zero
+    suppressWarnings(cleanedStormData$PROPDMGEXP<-as.numeric(cleanedStormData$PROPDMGEXP))
+    suppressWarnings(cleanedStormData$CROPDMGEXP<-as.numeric(cleanedStormData$CROPDMGEXP))
+    cleanedStormData$PROPDMGEXP[is.na(cleanedStormData$PROPDMGEXP)]<-0
+    cleanedStormData$CROPDMGEXP[is.na(cleanedStormData$CROPDMGEXP)]<-0
+    
+    cleanedStormData$TOTALDMG = (cleanedStormData$PROPDMG * 10^cleanedStormData$PROPDMGEXP) +
+                                (cleanedStormData$CROPDMG * 10^cleanedStormData$CROPDMGEXP)
+    return (cleanedStormData)
+}
+
+stormData<-cleanData(stormData)
+```
+
+
+## Results
