@@ -40,7 +40,6 @@ getDataFiles <- function()
         
 readData <- function()
 {
-        ##if data doesnt exist in cache, read data from zip file into dataset and cache it for future use
         stormData <- read.csv(stormDataFile<-bzfile("StormData.csv.bz2", "r"))
         close(stormDataFile)
         return (stormData)
@@ -52,41 +51,46 @@ stormData<-readData()
 ```
 
 ### Data Cleansing
+Exploratory data analysis followed downloaded and reading the data into a local dataset.  Exploratory analysis showed that there was a great amount of variety in the verbiage describing the weather event types; to the extent of 898 unique descriptions.  The contrasts with the documentation in *Section 2.1.1* on page 6 of the [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) that describes the 48 valid event types.  The first order of data cleasing was to consolidate these 898 unique types in the 48 valid types as best as possible.
+
+In an effort to best represent the intent behind the data entries and minimize any loss, I mapped a regular expression to each valid weather entry.  For example, i inferred any entry with both the words *Dense* and *Smoke* in it to be a representation of the *Dense Smoke* weather event type and so I mapped *Dense Smoke* to the regular expression "(?=.*Dense)(?=.*Smoke)" to it.  The regular expressions (the patterns) and the valid Event Types were both stored in the vectors permittedEventsPattern and permittedEventTypes respectively.  Where there was the possibility of duplicate patterns returning the same entry (e.g., Flood and Flash Flood), the pattern was sorted from generic (e.g., Flood) to specific (e.g., Flash Flood) so only a more specific entry would be overwritten.  The valid events and event patterns were collapsed together to form a mapping table named *goodEvTTable*.
 
 ```{r, echo=TRUE}
-cleanData <- function(stormData)
-{
-    #there are 898 unique event types in the raw dataset as determined by length(unique(toupper(stormData$EVTYPE)))
-    uniqueEventTypes<-sort(unique(toupper(stormData$EVTYPE)))
-    
-    #however, according to the storm data documentation only 48 specific event types are allowed
-    permittedEventsPattern<-c("^Astronomical Low", "^Avalanc", "^Blizzard", "(?=.*Cold|Wind)(?=.*Chill)",
-                              "(?=.*Dense)(?=.*Fog)", "(?=.*Dense)(?=.*Smoke)", "(?=.*Drought)", "(?=.*Dust Devil)",
-                              "(?=.*Dust Storm)", "(?=.*Extreme)(?=.*Chill)", "(?=.*Flood)","(?=.*Forst|Freeze)",
-                              "(?=.*Funnel)","(?=.*Freezing Fog)", "(?=.*Hail)", "(?=.*Heat)", "(?=.*Heavy Rains)", "(?=.*Heavy Snow)",
-                              "(?=.*High Surf)","(?=.*High Wind)", "(?=.*Hurricane|Typhoon)", "(?=.*Ice Storm)", "(?=.*Lake)(?=.*Snow)", 
-                              "(?=.*Lake)(?=.*Flood)","(?=.*Lightning)", "(?=.*Marine Hail)", "(?=.*Marine High Wind)",  
-                              "(?=.*Marine T)","(?=.*Rip Current)", "(?=.*Seiche)", "(?=.*Sleet)", "(?=.*Storm Surge)", "(?=.*Strong Wind)", 
-                              "(?=.*Thunderstorm Wind)","(?=.*Tornado)", "(?=.*Tropical Depression)", "(?=.*Tropical Storm)", "(?=.*Tsunami)", 
-                              "(?=.*Volcanic Ash)", "(?=.*Waterspout)", "(?=.*Wildfire)", "(?=.*Winter Storm)", "(?=.*Winter Weather)",
-                              "(?=.*Coastal)(?=.*Flood)","(?=.*Debris)", "(?=.*Excessive Heat)","(?=.*Flash)(?=.*Flood)","(?=.*Marine Strong Wind)"
-                              )
-    permittedEvents<-c("Astronomical Low Tide","Avalanche","Blizzard","Cold/Wind Chill",
-                        "Dense Fog","Dense Smoke","Drought","Dust Devil",
-                        "Dust Storm","Extreme Cold/Wind Chill","Flood","Frost/Freeze", 
-                        "Funnel Cloud","Freezing Fog","Hail","Heat","Heavy Rain","Heavy Snow", 
-                        "High Surf","High Wind","Hurricane (Typhoon)","Ice Storm", 
-                        "Lake-Effect Snow","Lakeshore Flood","Lightning", 
-                        "Marine Hail","Marine High Wind", 
-                        "Marine Thunderstorm Wind","Rip Current","Seiche","Sleet","Storm Surge/Tide","Strong Wind", 
-                        "Thunderstorm Wind","Tornado","Tropical Depression","Tropical Storm","Tsunami", 
-                        "Volcanic Ash","Waterspout","Wildfire","Winter Storm","Winter Weather",
-                        "Coastal Flood","Debris Flow","Excessive Heat","Flash Flood","Marine Strong Wind")
-    goodEvTTable<-data.frame(permittedEvents, permittedEventsPattern)
-    
-    #    eventPatternMatch<-paste(permittedEventsPattern, collapse = "|")
-    #    filteredEVTypes<-uniqueEventTypes[grep(eventPatternMatch, uniqueEventTypes, ignore.case = TRUE, perl=TRUE)]
-    
+#there are 898 unique event types in the raw dataset as determined by length(unique(toupper(stormData$EVTYPE)))
+uniqueEventTypes<-sort(unique(toupper(stormData$EVTYPE)))
+
+#however, according to the storm data documentation only 48 specific event types are allowed
+permittedEventsPattern<-c("^Astronomical Low", "^Avalanc", "^Blizzard", "(?=.*Cold|Wind)(?=.*Chill)",
+                          "(?=.*Dense)(?=.*Fog)", "(?=.*Dense)(?=.*Smoke)", "(?=.*Drought)", "(?=.*Dust Devil)",
+                          "(?=.*Dust Storm)", "(?=.*Extreme)(?=.*Chill)", "(?=.*Flood)","(?=.*Forst|Freeze)",
+                          "(?=.*Funnel)","(?=.*Freezing Fog)", "(?=.*Hail)", "(?=.*Heat)", "(?=.*Heavy Rains)", "(?=.*Heavy Snow)",
+                          "(?=.*High Surf)","(?=.*High Wind)", "(?=.*Hurricane|Typhoon)", "(?=.*Ice Storm)", "(?=.*Lake)(?=.*Snow)", 
+                          "(?=.*Lake)(?=.*Flood)","(?=.*Lightning)", "(?=.*Marine Hail)", "(?=.*Marine High Wind)",  
+                          "(?=.*Marine T)","(?=.*Rip Current)", "(?=.*Seiche)", "(?=.*Sleet)", "(?=.*Storm Surge)", "(?=.*Strong Wind)", 
+                          "(?=.*Thunderstorm Wind)","(?=.*Tornado)", "(?=.*Tropical Depression)", "(?=.*Tropical Storm)", "(?=.*Tsunami)", 
+                          "(?=.*Volcanic Ash)", "(?=.*Waterspout)", "(?=.*Wildfire)", "(?=.*Winter Storm)", "(?=.*Winter Weather)",
+                          "(?=.*Coastal)(?=.*Flood)","(?=.*Debris)", "(?=.*Excessive Heat)","(?=.*Flash)(?=.*Flood)","(?=.*Marine Strong Wind)"
+                          )
+permittedEvents<-c("Astronomical Low Tide","Avalanche","Blizzard","Cold/Wind Chill",
+                    "Dense Fog","Dense Smoke","Drought","Dust Devil",
+                    "Dust Storm","Extreme Cold/Wind Chill","Flood","Frost/Freeze", 
+                    "Funnel Cloud","Freezing Fog","Hail","Heat","Heavy Rain","Heavy Snow", 
+                    "High Surf","High Wind","Hurricane (Typhoon)","Ice Storm", 
+                    "Lake-Effect Snow","Lakeshore Flood","Lightning", 
+                    "Marine Hail","Marine High Wind", 
+                    "Marine Thunderstorm Wind","Rip Current","Seiche","Sleet","Storm Surge/Tide","Strong Wind", 
+                    "Thunderstorm Wind","Tornado","Tropical Depression","Tropical Storm","Tsunami", 
+                    "Volcanic Ash","Waterspout","Wildfire","Winter Storm","Winter Weather",
+                    "Coastal Flood","Debris Flow","Excessive Heat","Flash Flood","Marine Strong Wind")
+
+goodEvTTable<-data.frame(permittedEvents, permittedEventsPattern)
+```    
+
+Additionally, columns which had no relevance to determining the impact on population health and economy were removed from investigation.  A clean dataset was created that only included the first eight (primarily demographic) variables as well as columns 23 through 28 which include the numbers for injuries, fatalities, property damage, crop damage, and exponential multipliers for both property damage and crop damage.
+
+After removing unneeded columns, the mapping table was used to populate a new column with the mapped valid event type as determined by applying the mapped pattern to the EVTYPE variable.  Any observations that did not match any of these patterns was omitted as invlid data due to an inability to infer a valid event type.  The new variable, *GOODEVTYPE*, representing the valid event type according to the aforementioned table in the Storm Data Documentation is stored as a factor.
+
+```{r, echo=TRUE}    
     #remove columns not needed for this evaluation
     cleanedStormData<-stormData[,c(1:8, 23:28)]
     cleanedStormData$GOODEVTYPE<-NA
@@ -97,7 +101,11 @@ cleanData <- function(stormData)
     }
     cleanedStormData<-na.omit(cleanedStormData)
     cleanedStormData$GOODEVTYPE<-as.factor(cleanedStormData$GOODEVTYPE)
-    
+```
+
+Once the event types are cleansed, additional cleansing was performed to aide in the calculation for impact to the economy.  The dataset includes variables that represent exponential multipliers to the base numbers for property damage and crop damage respectively.  Inferring from the in *Section 2.7* on page 12 of the same document, "B|b" equates to billions, "M|m" to millions, "K|k" to thousands, and following that logic "H|h" would equate to hundreds.  Thus, these characters were replaced with the proper exponential value representing each of them (i.e., 9, 6, 3, and 2). There were additional characters (namely, empty string, plus, minus, and question mark ('', '+', '-', '?')) for which an exponential value could not be determined.  The column was transformed to a numeric and any non-numeric values, which were then represented as NA, were converted to zero.  An additional column, *TOTALDMG*, representing the total economic damage due to a weather event, was created and populated with the (value from PROPDMG * 10^value from PROPDMGEXP) + (value from CROPDMG * 10^value from CROPDMGEXP) 
+
+```{r, echo=TRUE}
     #convert exponential 'keys' to numerics
     expkeys<-c("h","k","m","b")
     expvalue<-c(2,3,6,9)
@@ -114,11 +122,81 @@ cleanData <- function(stormData)
     
     cleanedStormData$TOTALDMG = (cleanedStormData$PROPDMG * 10^cleanedStormData$PROPDMGEXP) +
                                 (cleanedStormData$CROPDMG * 10^cleanedStormData$CROPDMGEXP)
-    return (cleanedStormData)
+
+```
+
+Finally, a concise "summation table" was created that held an observation for every weather event type and the variables for the sum of injuries, fatalities, and total economic damage.  This functionality was encapsulated in a function named *createSummationTable*.
+
+```{r, echo=TRUE}
+createSummationTable<-function(stormData)
+{
+    aggregatedStormData<-aggregate(stormData$INJURIES, list(EVENTTYPE=stormData$GOODEVTYPE), sum)
+    fatalities<-aggregate(stormData$FATALITIES, list(EVENTTYPE=stormData$GOODEVTYPE), sum)
+    totaldmg<-aggregate(stormData$TOTALDMG, list(EVENTTYPE=stormData$GOODEVTYPE), sum)
+    colnames(aggregatedStormData)[2]<-"injuries"
+    colnames(fatalities)[2]<-"fatalities"
+    colnames(totaldmg)[2]<-"totaldmg"
+    aggregatedStormData<-merge(aggregatedStormData, merge(fatalities, totaldmg))
+    
+    return (aggregatedStormData)
 }
 
-stormData<-cleanData(stormData)
+aggregateStormData<-createSummationTable(cleanedStormData)
 ```
 
 
 ## Results
+With the summation table created, determining the impact that each weather event as on population health and the economy becomes straightforward.  
+
+### Effect of Weather Events on Injuries
+The effect of weather events on injuries can be observed by plotting the EVENTTYPE against the observed injuries as shown below.
+
+```{r, echo=TRUE}
+library(ggplot2)
+    injuryplot<-ggplot(aggregateStormData, aes(x = EVENTTYPE, y = injuries, fill = EVENTTYPE)) + 
+        geom_bar(stat = "identity") + 
+        xlab("Weather Event Type") + 
+        ylab("Injuries") + 
+        guides(fill=FALSE) + 
+        ggtitle("US Injuries due to Weather Event Types") +
+        coord_flip()  
+
+        print(injuryplot)
+```
+
+We can observe in this plot that `r as.character(aggregateStormData[aggregateStormData$injuries==max(aggregateStormData$injuries),]$EVENTTYPE)` is the weather event type that is associated with the greatest number of injuries at `r max(aggregateStormData$injuries)`.
+
+### Effect of Weather Events on Fatalities
+Injuries are just one of the measurements related to public health concerns.  Fatalities are the other.  The effect of weather events on fatalities can be observed by plotting the EVENTTYPE against the observed fatalities as shown below.
+
+```{r, echo=TRUE}
+    fatalplot<-ggplot(aggregateStormData, aes(x = EVENTTYPE, y = fatalities, fill = EVENTTYPE)) + 
+        geom_bar(stat = "identity") + 
+        xlab("Weather Event Type") + 
+        ylab("Fatalities") + 
+        guides(fill=FALSE) + 
+        ggtitle("US Fatalities due to Weather Event Types") +
+        coord_flip()  
+
+        print(fatalplot)
+```
+
+We can observe in this plot that `r as.character(aggregateStormData[aggregateStormData$fatalities==max(aggregateStormData$fatalities),]$EVENTTYPE)` is the weather event type that is associated with the greatest number of fatalities at `r max(aggregateStormData$fatalities)`.
+
+### Effect of Weather Events on the Economy
+Lastly, the effect of weather events on the economy, namely property and crop damage, can be observed by plotting the EVENTTYPE against the observed total damage (totaldmg field) as shown below.
+
+```{r, echo=TRUE}
+    options(scipen=12)
+    economicplot<-ggplot(aggregateStormData, aes(x = EVENTTYPE, y = totaldmg, fill = EVENTTYPE)) + 
+        geom_bar(stat = "identity") + 
+        xlab("Weather Event Type") + 
+        ylab("Economic Damage in USD") + 
+        guides(fill=FALSE) + 
+        ggtitle("Economic Damage in the US due to Weather Event Types") +
+        coord_flip()  
+
+        print(economicplot)
+```
+
+We can observe in this plot that `r as.character(aggregateStormData[aggregateStormData$totaldmg==max(aggregateStormData$totaldmg),]$EVENTTYPE)` is the weather event type that is associated with the greatest impact on the economy at `r max(aggregateStormData$totaldmg)`.
